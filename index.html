@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Formatter & Validator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; background: #f9fafb; color: #111827; }
+        h1 { text-align: center; color: #2563eb; }
+        textarea { width: 100%; height: 250px; padding: 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-family: monospace; font-size: 14px; margin-bottom: 1rem; box-sizing: border-box; }
+        button { background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 1rem; }
+        button:hover { background: #1d4ed8; }
+        .error { color: #dc2626; margin-top: 1rem; font-weight: bold; }
+        pre { background: #1f2937; color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; display: none; }
+    </style>
+</head>
+<body>
+    <h1>JSON Formatter & Validator</h1>
+    <textarea id="input" placeholder="Paste your JSON here..."></textarea>
+    <button onclick="formatJSON()">Format & Validate JSON</button>
+    <div id="error" class="error"></div>
+    <pre id="output"></pre>
+    <script>
+        function formatJSON() {
+            const input = document.getElementById('input').value;
+            const errorDiv = document.getElementById('error');
+            const outputPre = document.getElementById('output');
+
+            errorDiv.textContent = '';
+            outputPre.style.display = 'none';
+            outputPre.textContent = '';
+
+            if (!input.trim()) return;
+
+            try {
+                const parsed = JSON.parse(input);
+                outputPre.textContent = JSON.stringify(parsed, null, 4);
+                outputPre.style.display = 'block';
+            } catch (e) {
+                errorDiv.textContent = 'Invalid JSON: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
