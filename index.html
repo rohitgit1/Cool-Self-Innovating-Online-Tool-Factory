@@ -3,43 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Formatter & Validator</title>
+    <title>WebCrypto JWT Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; background: #f9fafb; color: #111827; }
-        h1 { text-align: center; color: #2563eb; }
-        textarea { width: 100%; height: 250px; padding: 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-family: monospace; font-size: 14px; margin-bottom: 1rem; box-sizing: border-box; }
-        button { background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 1rem; }
-        button:hover { background: #1d4ed8; }
-        .error { color: #dc2626; margin-top: 1rem; font-weight: bold; }
-        pre { background: #1f2937; color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; display: none; }
+        .bg-pattern { background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; }
+        .token-text { word-break: break-all; font-family: 'JetBrains Mono', monospace; }
+        .jwt-header { color: #ec4899; }
+        .jwt-payload { color: #8b5cf6; }
+        .jwt-signature { color: #0ea5e9; }
     </style>
 </head>
-<body>
-    <h1>JSON Formatter & Validator</h1>
-    <textarea id="input" placeholder="Paste your JSON here..."></textarea>
-    <button onclick="formatJSON()">Format & Validate JSON</button>
-    <div id="error" class="error"></div>
-    <pre id="output"></pre>
+<body class="bg-gray-50 text-gray-900 font-sans min-h-screen bg-pattern" x-data="jwtStudio()">
+
+    <div class="max-w-6xl mx-auto p-6 pt-12">
+
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 mb-2">WebCrypto <span class="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500">JWT Studio</span></h1>
+            <p class="text-lg text-gray-600">Secure, client-side JWT generation and decoding using Native WebCrypto API.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- Encode Section -->
+            <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden flex flex-col">
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+                    <h2 class="font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        Encoder / Signer
+                    </h2>
+                </div>
+
+                <div class="p-6 flex-grow flex flex-col gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Header (JSON)</label>
+                        <textarea x-model="headerStr" class="w-full h-24 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" @input="signToken"></textarea>
+                    </div>
+
+                    <div class="flex-grow flex flex-col">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Payload (JSON)</label>
+                        <textarea x-model="payloadStr" class="w-full flex-grow p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 min-h-[150px]" @input="signToken"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1 flex justify-between">
+                            <span>Secret (HMAC SHA-256)</span>
+                            <button @click="generateRandomSecret" class="text-xs text-purple-600 hover:text-purple-800 font-medium">Generate Random</button>
+                        </label>
+                        <input type="text" x-model="secret" class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" @input="signToken">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decode Section -->
+            <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden flex flex-col">
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+                    <h2 class="font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        Encoded Token
+                    </h2>
+                </div>
+
+                <div class="p-6 flex-grow flex flex-col gap-4">
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[150px] relative">
+                        <template x-if="tokenError">
+                            <div class="absolute inset-0 flex items-center justify-center text-red-500 font-medium bg-gray-50/80 rounded-xl z-10" x-text="tokenError"></div>
+                        </template>
+                        <div class="token-text text-lg break-all leading-relaxed" style="font-family: monospace;">
+                            <span class="jwt-header font-bold" x-text="tokenParts.header"></span><span class="text-gray-400 font-bold" x-show="tokenParts.header">.</span><span class="jwt-payload font-bold" x-text="tokenParts.payload"></span><span class="text-gray-400 font-bold" x-show="tokenParts.payload">.</span><span class="jwt-signature font-bold" x-text="tokenParts.signature"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button @click="copyToken" class="flex-1 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 flex justify-center items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            Copy Token
+                        </button>
+                    </div>
+
+                    <div class="mt-4 flex-grow">
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Signature Status</h3>
+                        <div class="p-4 rounded-lg border flex items-center gap-3" :class="isSignatureValid ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'">
+                            <svg x-show="isSignatureValid" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <svg x-show="!isSignatureValid" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-medium" x-text="isSignatureValid ? 'Signature Verified' : 'Invalid Signature'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        function formatJSON() {
-            const input = document.getElementById('input').value;
-            const errorDiv = document.getElementById('error');
-            const outputPre = document.getElementById('output');
+        // Utilities for Base64Url
+        const b64u = {
+            encode: (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+            encodeBytes: (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+            decode: (str) => decodeURIComponent(escape(atob((str + '==='.slice((str.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/'))))
+        };
 
-            errorDiv.textContent = '';
-            outputPre.style.display = 'none';
-            outputPre.textContent = '';
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('jwtStudio', () => ({
+                headerStr: '{\n  "alg": "HS256",\n  "typ": "JWT"\n}',
+                payloadStr: '{\n  "sub": "1234567890",\n  "name": "Enterprise User",\n  "admin": true,\n  "iat": ' + Math.floor(Date.now()/1000) + '\n}',
+                secret: 'your-256-bit-secret',
+                tokenParts: { header: '', payload: '', signature: '' },
+                tokenError: '',
+                isSignatureValid: false,
 
-            if (!input.trim()) return;
+                init() {
+                    this.signToken();
+                },
 
-            try {
-                const parsed = JSON.parse(input);
-                outputPre.textContent = JSON.stringify(parsed, null, 4);
-                outputPre.style.display = 'block';
-            } catch (e) {
-                errorDiv.textContent = 'Invalid JSON: ' + e.message;
-            }
-        }
+                generateRandomSecret() {
+                    const array = new Uint8Array(32);
+                    window.crypto.getRandomValues(array);
+                    this.secret = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+                    this.signToken();
+                },
+
+                async signToken() {
+                    this.tokenError = '';
+                    try {
+                        // Validate JSON
+                        JSON.parse(this.headerStr);
+                        JSON.parse(this.payloadStr);
+
+                        const encodedHeader = b64u.encode(this.headerStr);
+                        const encodedPayload = b64u.encode(this.payloadStr);
+                        const dataToSign = `${encodedHeader}.${encodedPayload}`;
+
+                        // WebCrypto HMAC SHA-256
+                        const enc = new TextEncoder();
+                        const keyMaterial = await window.crypto.subtle.importKey(
+                            'raw',
+                            enc.encode(this.secret),
+                            { name: 'HMAC', hash: 'SHA-256' },
+                            false,
+                            ['sign']
+                        );
+
+                        const signatureBuffer = await window.crypto.subtle.sign(
+                            'HMAC',
+                            keyMaterial,
+                            enc.encode(dataToSign)
+                        );
+
+                        const encodedSignature = b64u.encodeBytes(signatureBuffer);
+
+                        this.tokenParts = {
+                            header: encodedHeader,
+                            payload: encodedPayload,
+                            signature: encodedSignature
+                        };
+                        this.isSignatureValid = true;
+
+                    } catch (e) {
+                        this.tokenError = "Invalid JSON input.";
+                        this.isSignatureValid = false;
+                        this.tokenParts = { header: '', payload: '', signature: '' };
+                    }
+                },
+
+                copyToken() {
+                    const fullToken = `${this.tokenParts.header}.${this.tokenParts.payload}.${this.tokenParts.signature}`;
+                    if (fullToken.length > 2) {
+                        navigator.clipboard.writeText(fullToken);
+                    }
+                }
+            }));
+        });
     </script>
 </body>
 </html>
