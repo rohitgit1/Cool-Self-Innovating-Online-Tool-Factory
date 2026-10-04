@@ -1,165 +1,226 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="antialiased text-gray-900 bg-gray-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Structured Log Analyzer</title>
+    <title>Enterprise JSON Architect</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: { extend: { colors: { gray: { 900: '#0f1115', 800: '#1a1d24', 700: '#2b303b' } } } }
-        }
-    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <style>
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.18); }
+        .dark-glass { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
 </head>
-<body class="bg-gray-900 text-gray-200 font-sans min-h-screen flex flex-col" x-data="logAnalyzer()">
+<body class="min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white" x-data="jsonArchitect()">
 
-    <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <div class="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
-                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-            </div>
-            <h1 class="text-2xl font-bold tracking-tight text-white">Log Analyzer Engine <span class="text-xs font-mono bg-blue-600 text-white px-2 py-0.5 rounded-full ml-2">v2.0</span></h1>
+    <!-- Navbar -->
+    <nav class="glass sticky top-0 z-50 px-6 py-4 border-b border-gray-200 shadow-sm flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg">JA</div>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Enterprise JSON Architect</h1>
         </div>
-        <div class="text-sm text-gray-400 font-mono">
-            Processed: <span class="text-white font-bold" x-text="parsedCount"></span> / <span x-text="totalLines"></span> lines
+        <div class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+            <span x-text="statusText" :class="statusColor"></span>
         </div>
-    </header>
+    </nav>
 
-    <main class="flex-grow p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-81px)]">
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col md:flex-row p-6 gap-6 h-[calc(100vh-73px)]">
 
-        <!-- Left Panel: Input & Config -->
-        <div class="lg:col-span-1 flex flex-col gap-4">
-            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700 shadow-xl flex-grow flex flex-col">
-                <label class="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">1. Regex Extractor (Named Groups)</label>
-                <input type="text" x-model="regexPattern" @input="debouncedParse" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 font-mono text-sm text-green-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="e.g. (?<ip>\S+) \S+ \S+ \[(?<date>[^\]]+)\] &quot;(?<method>\S+) (?<path>\S+) .*?&quot; (?<status>\d+)">
-                <p class="text-xs text-gray-500 mt-2">Extract variables using JavaScript named capture groups: <code>(?&lt;name&gt;pattern)</code></p>
-
-                <label class="text-sm font-semibold text-gray-400 mt-6 mb-2 uppercase tracking-wide">2. Raw Log Data</label>
-                <textarea x-model="rawLogs" @input="debouncedParse" class="flex-grow w-full bg-gray-900 border border-gray-700 rounded-lg p-4 font-mono text-xs text-gray-300 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 custom-scrollbar whitespace-pre" placeholder="Paste Apache, Nginx, or unstructured logs here..."></textarea>
+        <!-- Input Section -->
+        <div class="flex-1 flex flex-col bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
+            <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Raw JSON Payload</h2>
+                <button @click="formatInput" class="text-xs bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-medium px-3 py-1.5 rounded-md transition-colors shadow-sm">Format</button>
             </div>
+            <textarea
+                x-model="rawInput"
+                @input="processJSON"
+                class="flex-1 w-full p-4 focus:outline-none resize-none font-mono text-sm custom-scrollbar text-gray-800"
+                placeholder="Paste large JSON arrays or objects here..."></textarea>
         </div>
 
-        <!-- Right Panel: Data Table -->
-        <div class="lg:col-span-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex flex-col overflow-hidden">
-            <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center">
-                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide">Structured Output Table</h2>
-                <input type="text" x-model="filterQuery" class="bg-gray-900 border border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="Filter rows...">
-            </div>
-
-            <div class="flex-grow overflow-auto custom-scrollbar relative">
-                <template x-if="columns.length === 0">
-                    <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
-                        <svg class="w-12 h-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        <p>No named capture groups matched.</p>
-                        <p class="text-xs mt-1">Adjust your regex or paste valid logs.</p>
-                    </div>
+        <!-- Output Section -->
+        <div class="flex-1 flex flex-col dark-glass rounded-2xl shadow-2xl overflow-hidden border border-gray-700">
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-700 bg-gray-900/50 p-2 gap-2">
+                <template x-for="tab in tabs" :key="tab.id">
+                    <button
+                        @click="activeTab = tab.id; $nextTick(() => Prism.highlightAll())"
+                        class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+                        :class="activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'">
+                        <span x-text="tab.name"></span>
+                    </button>
                 </template>
+                <div class="flex-grow"></div>
+                <button @click="copyOutput" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-600 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    Copy
+                </button>
+            </div>
 
-                <table class="w-full text-left border-collapse" x-show="columns.length > 0">
-                    <thead class="sticky top-0 bg-gray-900 z-10 shadow">
-                        <tr>
-                            <template x-for="col in columns" :key="col">
-                                <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-700 whitespace-nowrap" x-text="col"></th>
-                            </template>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-700/50">
-                        <template x-for="(row, idx) in filteredRows" :key="idx">
-                            <tr class="hover:bg-gray-700/30 transition-colors">
-                                <template x-for="col in columns" :key="col">
-                                    <td class="px-4 py-3 text-sm font-mono whitespace-nowrap max-w-[300px] truncate" :title="row[col]">
-                                        <!-- Add semantic coloring for status codes etc if possible -->
-                                        <span x-text="row[col] || '-'"
-                                            :class="col.toLowerCase().includes('status') ?
-                                                (String(row[col]).startsWith('2') ? 'text-green-400' :
-                                                 String(row[col]).startsWith('3') ? 'text-blue-400' :
-                                                 String(row[col]).startsWith('4') ? 'text-yellow-400' :
-                                                 String(row[col]).startsWith('5') ? 'text-red-400' : 'text-gray-300')
-                                                : 'text-gray-300'"></span>
-                                    </td>
-                                </template>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
+            <!-- Output Content -->
+            <div class="flex-1 overflow-auto custom-scrollbar p-4 relative bg-[#1d1f21]">
+                <pre class="m-0! p-0! bg-transparent!"><code :class="'language-' + (activeTab === 'ts' ? 'typescript' : 'json')" x-text="outputContent"></code></pre>
             </div>
         </div>
     </main>
 
-    <style>
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; border: 2px solid #1f2937; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-    </style>
-
     <script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('logAnalyzer', () => ({
-                regexPattern: '^(?<ip>\\S+) \\S+ \\S+ \\[(?<date>[^\\]]+)\\] "(?<method>\\S+) (?<path>\\S+) .*?" (?<status>\\d+) (?<size>\\d+)',
-                rawLogs: '127.0.0.1 - - [10/Oct/2023:13:55:36 -0700] "GET /api/v1/users HTTP/1.1" 200 2326\n192.168.1.1 - - [10/Oct/2023:13:55:40 -0700] "POST /api/v1/login HTTP/1.1" 401 123\n10.0.0.5 - - [10/Oct/2023:13:56:01 -0700] "GET /health HTTP/1.1" 200 12\n45.22.19.1 - - [10/Oct/2023:13:57:12 -0700] "GET /assets/style.css HTTP/2.0" 304 0\n127.0.0.1 - - [10/Oct/2023:13:58:05 -0700] "GET /api/v1/data HTTP/1.1" 500 4591',
-                parsedRows: [],
-                columns: [],
-                totalLines: 0,
-                parsedCount: 0,
-                filterQuery: '',
-                debounceTimer: null,
+            Alpine.data('jsonArchitect', () => ({
+                rawInput: '',
+                parsedData: null,
+                activeTab: 'ts',
+                status: 'idle',
+                tabs: [
+                    { id: 'ts', name: 'TypeScript Interfaces' },
+                    { id: 'schema', name: 'JSON Schema' },
+                    { id: 'profile', name: 'Data Profile' }
+                ],
 
-                init() {
-                    this.parse();
+                get statusText() {
+                    if (this.status === 'idle') return 'Ready';
+                    if (this.status === 'error') return 'Invalid JSON';
+                    if (this.status === 'success') return 'Parsed Successfully';
+                    return 'Processing...';
                 },
-
-                debouncedParse() {
-                    clearTimeout(this.debounceTimer);
-                    this.debounceTimer = setTimeout(() => this.parse(), 300);
+                get statusColor() {
+                    if (this.status === 'error') return 'text-red-600 bg-red-100 border-red-200';
+                    if (this.status === 'success') return 'text-green-600 bg-green-100 border-green-200';
+                    return 'text-gray-500 bg-gray-100 border-gray-200';
                 },
-
-                parse() {
-                    if (!this.regexPattern || !this.rawLogs) {
-                        this.parsedRows = [];
-                        this.columns = [];
-                        this.totalLines = 0;
-                        this.parsedCount = 0;
-                        return;
-                    }
-
-                    const lines = this.rawLogs.split('\n').filter(l => l.trim() !== '');
-                    this.totalLines = lines.length;
+                get outputContent() {
+                    if (!this.parsedData) return '// Waiting for valid JSON...';
 
                     try {
-                        const regex = new RegExp(this.regexPattern);
-                        let cols = new Set();
-                        let rows = [];
-                        let count = 0;
-
-                        for (const line of lines) {
-                            const match = regex.exec(line);
-                            if (match && match.groups) {
-                                rows.push(match.groups);
-                                Object.keys(match.groups).forEach(k => cols.add(k));
-                                count++;
-                            }
-                        }
-
-                        this.columns = Array.from(cols);
-                        this.parsedRows = rows;
-                        this.parsedCount = count;
+                        if (this.activeTab === 'ts') return this.generateTS(this.parsedData, 'Root');
+                        if (this.activeTab === 'schema') return JSON.stringify(this.generateSchema(this.parsedData), null, 2);
+                        if (this.activeTab === 'profile') return JSON.stringify(this.profileData(this.parsedData), null, 2);
                     } catch (e) {
-                        // Invalid regex
-                        this.columns = [];
-                        this.parsedRows = [];
-                        this.parsedCount = 0;
+                        return '// Error generating output: ' + e.message;
                     }
                 },
 
-                get filteredRows() {
-                    if (!this.filterQuery) return this.parsedRows;
-                    const q = this.filterQuery.toLowerCase();
-                    return this.parsedRows.filter(row => {
-                        return Object.values(row).some(val => String(val).toLowerCase().includes(q));
-                    });
+                formatInput() {
+                    try {
+                        if (!this.rawInput.trim()) return;
+                        const obj = JSON.parse(this.rawInput);
+                        this.rawInput = JSON.stringify(obj, null, 2);
+                        this.processJSON();
+                    } catch(e) {
+                        this.status = 'error';
+                    }
+                },
+
+                processJSON() {
+                    if (!this.rawInput.trim()) {
+                        this.parsedData = null;
+                        this.status = 'idle';
+                        return;
+                    }
+                    try {
+                        this.parsedData = JSON.parse(this.rawInput);
+                        this.status = 'success';
+                        setTimeout(() => Prism.highlightAll(), 50);
+                    } catch(e) {
+                        this.status = 'error';
+                    }
+                },
+
+                copyOutput() {
+                    navigator.clipboard.writeText(this.outputContent);
+                    const btn = event.currentTarget;
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = 'Copied!';
+                    setTimeout(() => btn.innerHTML = originalHTML, 2000);
+                },
+
+                getType(val) {
+                    if (val === null) return 'null';
+                    if (Array.isArray(val)) return 'array';
+                    return typeof val;
+                },
+
+                // Simplified TS Generation
+                generateTS(obj, name = 'Root', interfaces = new Map()) {
+                    let ts = '';
+                    const type = this.getType(obj);
+
+                    if (type === 'array') {
+                        if (obj.length > 0) {
+                            this.generateTS(obj[0], name + 'Item', interfaces);
+                            return Array.from(interfaces.values()).join('\n\n') + `\n\ntype ${name} = ${name}Item[];`;
+                        } else {
+                            return `type ${name} = any[];`;
+                        }
+                    } else if (type === 'object') {
+                        let props = [];
+                        for (const key in obj) {
+                            const valType = this.getType(obj[key]);
+                            const safeKey = /^[a-zA-Z_$][0-9a-zA-Z_$]*$/.test(key) ? key : `"${key}"`;
+                            if (valType === 'object') {
+                                const childName = name + key.charAt(0).toUpperCase() + key.slice(1);
+                                this.generateTS(obj[key], childName, interfaces);
+                                props.push(`  ${safeKey}: ${childName};`);
+                            } else if (valType === 'array') {
+                                if (obj[key].length > 0) {
+                                    const childName = name + key.charAt(0).toUpperCase() + key.slice(1) + 'Item';
+                                    this.generateTS(obj[key][0], childName, interfaces);
+                                    props.push(`  ${safeKey}: ${childName}[];`);
+                                } else {
+                                    props.push(`  ${safeKey}: any[];`);
+                                }
+                            } else {
+                                props.push(`  ${safeKey}: ${valType === 'null' ? 'any' : valType};`);
+                            }
+                        }
+                        const iface = `export interface ${name} {\n${props.join('\n')}\n}`;
+                        interfaces.set(name, iface);
+                    }
+
+                    return Array.from(interfaces.values()).join('\n\n');
+                },
+
+                // Simplified JSON Schema
+                generateSchema(obj) {
+                    const type = this.getType(obj);
+                    let schema = { type };
+
+                    if (type === 'object') {
+                        schema.properties = {};
+                        for (const key in obj) {
+                            schema.properties[key] = this.generateSchema(obj[key]);
+                        }
+                    } else if (type === 'array') {
+                        if (obj.length > 0) {
+                            schema.items = this.generateSchema(obj[0]);
+                        } else {
+                            schema.items = {};
+                        }
+                    }
+                    return schema;
+                },
+
+                // Profile
+                profileData(obj) {
+                    let profile = { keys: 0, arrays: 0, objects: 0, primitives: 0 };
+                    const traverse = (node) => {
+                        const t = this.getType(node);
+                        if (t === 'object') { profile.objects++; Object.keys(node).forEach(k => { profile.keys++; traverse(node[k]); }); }
+                        else if (t === 'array') { profile.arrays++; node.forEach(n => traverse(n)); }
+                        else { profile.primitives++; }
+                    };
+                    traverse(obj);
+                    return profile;
                 }
             }));
         });
