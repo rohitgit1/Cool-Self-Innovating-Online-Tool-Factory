@@ -1,175 +1,165 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebCrypto JWT Studio</title>
+    <title>Structured Log Analyzer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { gray: { 900: '#0f1115', 800: '#1a1d24', 700: '#2b303b' } } } }
+        }
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        .bg-pattern { background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; }
-        .token-text { word-break: break-all; font-family: 'JetBrains Mono', monospace; }
-        .jwt-header { color: #ec4899; }
-        .jwt-payload { color: #8b5cf6; }
-        .jwt-signature { color: #0ea5e9; }
-    </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans min-h-screen bg-pattern" x-data="jwtStudio()">
+<body class="bg-gray-900 text-gray-200 font-sans min-h-screen flex flex-col" x-data="logAnalyzer()">
 
-    <div class="max-w-6xl mx-auto p-6 pt-12">
+    <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-10 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
+                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">Log Analyzer Engine <span class="text-xs font-mono bg-blue-600 text-white px-2 py-0.5 rounded-full ml-2">v2.0</span></h1>
+        </div>
+        <div class="text-sm text-gray-400 font-mono">
+            Processed: <span class="text-white font-bold" x-text="parsedCount"></span> / <span x-text="totalLines"></span> lines
+        </div>
+    </header>
 
-        <div class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 mb-2">WebCrypto <span class="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500">JWT Studio</span></h1>
-            <p class="text-lg text-gray-600">Secure, client-side JWT generation and decoding using Native WebCrypto API.</p>
+    <main class="flex-grow p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-81px)]">
+
+        <!-- Left Panel: Input & Config -->
+        <div class="lg:col-span-1 flex flex-col gap-4">
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700 shadow-xl flex-grow flex flex-col">
+                <label class="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">1. Regex Extractor (Named Groups)</label>
+                <input type="text" x-model="regexPattern" @input="debouncedParse" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 font-mono text-sm text-green-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="e.g. (?<ip>\S+) \S+ \S+ \[(?<date>[^\]]+)\] &quot;(?<method>\S+) (?<path>\S+) .*?&quot; (?<status>\d+)">
+                <p class="text-xs text-gray-500 mt-2">Extract variables using JavaScript named capture groups: <code>(?&lt;name&gt;pattern)</code></p>
+
+                <label class="text-sm font-semibold text-gray-400 mt-6 mb-2 uppercase tracking-wide">2. Raw Log Data</label>
+                <textarea x-model="rawLogs" @input="debouncedParse" class="flex-grow w-full bg-gray-900 border border-gray-700 rounded-lg p-4 font-mono text-xs text-gray-300 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 custom-scrollbar whitespace-pre" placeholder="Paste Apache, Nginx, or unstructured logs here..."></textarea>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-            <!-- Encode Section -->
-            <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden flex flex-col">
-                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-                    <h2 class="font-bold text-gray-800 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                        Encoder / Signer
-                    </h2>
-                </div>
-
-                <div class="p-6 flex-grow flex flex-col gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Header (JSON)</label>
-                        <textarea x-model="headerStr" class="w-full h-24 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" @input="signToken"></textarea>
-                    </div>
-
-                    <div class="flex-grow flex flex-col">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Payload (JSON)</label>
-                        <textarea x-model="payloadStr" class="w-full flex-grow p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 min-h-[150px]" @input="signToken"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1 flex justify-between">
-                            <span>Secret (HMAC SHA-256)</span>
-                            <button @click="generateRandomSecret" class="text-xs text-purple-600 hover:text-purple-800 font-medium">Generate Random</button>
-                        </label>
-                        <input type="text" x-model="secret" class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" @input="signToken">
-                    </div>
-                </div>
+        <!-- Right Panel: Data Table -->
+        <div class="lg:col-span-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide">Structured Output Table</h2>
+                <input type="text" x-model="filterQuery" class="bg-gray-900 border border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="Filter rows...">
             </div>
 
-            <!-- Decode Section -->
-            <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden flex flex-col">
-                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-                    <h2 class="font-bold text-gray-800 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                        Encoded Token
-                    </h2>
-                </div>
+            <div class="flex-grow overflow-auto custom-scrollbar relative">
+                <template x-if="columns.length === 0">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
+                        <svg class="w-12 h-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <p>No named capture groups matched.</p>
+                        <p class="text-xs mt-1">Adjust your regex or paste valid logs.</p>
+                    </div>
+                </template>
 
-                <div class="p-6 flex-grow flex flex-col gap-4">
-                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[150px] relative">
-                        <template x-if="tokenError">
-                            <div class="absolute inset-0 flex items-center justify-center text-red-500 font-medium bg-gray-50/80 rounded-xl z-10" x-text="tokenError"></div>
+                <table class="w-full text-left border-collapse" x-show="columns.length > 0">
+                    <thead class="sticky top-0 bg-gray-900 z-10 shadow">
+                        <tr>
+                            <template x-for="col in columns" :key="col">
+                                <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-700 whitespace-nowrap" x-text="col"></th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700/50">
+                        <template x-for="(row, idx) in filteredRows" :key="idx">
+                            <tr class="hover:bg-gray-700/30 transition-colors">
+                                <template x-for="col in columns" :key="col">
+                                    <td class="px-4 py-3 text-sm font-mono whitespace-nowrap max-w-[300px] truncate" :title="row[col]">
+                                        <!-- Add semantic coloring for status codes etc if possible -->
+                                        <span x-text="row[col] || '-'"
+                                            :class="col.toLowerCase().includes('status') ?
+                                                (String(row[col]).startsWith('2') ? 'text-green-400' :
+                                                 String(row[col]).startsWith('3') ? 'text-blue-400' :
+                                                 String(row[col]).startsWith('4') ? 'text-yellow-400' :
+                                                 String(row[col]).startsWith('5') ? 'text-red-400' : 'text-gray-300')
+                                                : 'text-gray-300'"></span>
+                                    </td>
+                                </template>
+                            </tr>
                         </template>
-                        <div class="token-text text-lg break-all leading-relaxed" style="font-family: monospace;">
-                            <span class="jwt-header font-bold" x-text="tokenParts.header"></span><span class="text-gray-400 font-bold" x-show="tokenParts.header">.</span><span class="jwt-payload font-bold" x-text="tokenParts.payload"></span><span class="text-gray-400 font-bold" x-show="tokenParts.payload">.</span><span class="jwt-signature font-bold" x-text="tokenParts.signature"></span>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-4">
-                        <button @click="copyToken" class="flex-1 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 flex justify-center items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            Copy Token
-                        </button>
-                    </div>
-
-                    <div class="mt-4 flex-grow">
-                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Signature Status</h3>
-                        <div class="p-4 rounded-lg border flex items-center gap-3" :class="isSignatureValid ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'">
-                            <svg x-show="isSignatureValid" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <svg x-show="!isSignatureValid" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <span class="font-medium" x-text="isSignatureValid ? 'Signature Verified' : 'Invalid Signature'"></span>
-                        </div>
-                    </div>
-                </div>
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
+    </main>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; border: 2px solid #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
 
     <script>
-        // Utilities for Base64Url
-        const b64u = {
-            encode: (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-            encodeBytes: (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-            decode: (str) => decodeURIComponent(escape(atob((str + '==='.slice((str.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/'))))
-        };
-
         document.addEventListener('alpine:init', () => {
-            Alpine.data('jwtStudio', () => ({
-                headerStr: '{\n  "alg": "HS256",\n  "typ": "JWT"\n}',
-                payloadStr: '{\n  "sub": "1234567890",\n  "name": "Enterprise User",\n  "admin": true,\n  "iat": ' + Math.floor(Date.now()/1000) + '\n}',
-                secret: 'your-256-bit-secret',
-                tokenParts: { header: '', payload: '', signature: '' },
-                tokenError: '',
-                isSignatureValid: false,
+            Alpine.data('logAnalyzer', () => ({
+                regexPattern: '^(?<ip>\\S+) \\S+ \\S+ \\[(?<date>[^\\]]+)\\] "(?<method>\\S+) (?<path>\\S+) .*?" (?<status>\\d+) (?<size>\\d+)',
+                rawLogs: '127.0.0.1 - - [10/Oct/2023:13:55:36 -0700] "GET /api/v1/users HTTP/1.1" 200 2326\n192.168.1.1 - - [10/Oct/2023:13:55:40 -0700] "POST /api/v1/login HTTP/1.1" 401 123\n10.0.0.5 - - [10/Oct/2023:13:56:01 -0700] "GET /health HTTP/1.1" 200 12\n45.22.19.1 - - [10/Oct/2023:13:57:12 -0700] "GET /assets/style.css HTTP/2.0" 304 0\n127.0.0.1 - - [10/Oct/2023:13:58:05 -0700] "GET /api/v1/data HTTP/1.1" 500 4591',
+                parsedRows: [],
+                columns: [],
+                totalLines: 0,
+                parsedCount: 0,
+                filterQuery: '',
+                debounceTimer: null,
 
                 init() {
-                    this.signToken();
+                    this.parse();
                 },
 
-                generateRandomSecret() {
-                    const array = new Uint8Array(32);
-                    window.crypto.getRandomValues(array);
-                    this.secret = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-                    this.signToken();
+                debouncedParse() {
+                    clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => this.parse(), 300);
                 },
 
-                async signToken() {
-                    this.tokenError = '';
+                parse() {
+                    if (!this.regexPattern || !this.rawLogs) {
+                        this.parsedRows = [];
+                        this.columns = [];
+                        this.totalLines = 0;
+                        this.parsedCount = 0;
+                        return;
+                    }
+
+                    const lines = this.rawLogs.split('\n').filter(l => l.trim() !== '');
+                    this.totalLines = lines.length;
+
                     try {
-                        // Validate JSON
-                        JSON.parse(this.headerStr);
-                        JSON.parse(this.payloadStr);
+                        const regex = new RegExp(this.regexPattern);
+                        let cols = new Set();
+                        let rows = [];
+                        let count = 0;
 
-                        const encodedHeader = b64u.encode(this.headerStr);
-                        const encodedPayload = b64u.encode(this.payloadStr);
-                        const dataToSign = `${encodedHeader}.${encodedPayload}`;
+                        for (const line of lines) {
+                            const match = regex.exec(line);
+                            if (match && match.groups) {
+                                rows.push(match.groups);
+                                Object.keys(match.groups).forEach(k => cols.add(k));
+                                count++;
+                            }
+                        }
 
-                        // WebCrypto HMAC SHA-256
-                        const enc = new TextEncoder();
-                        const keyMaterial = await window.crypto.subtle.importKey(
-                            'raw',
-                            enc.encode(this.secret),
-                            { name: 'HMAC', hash: 'SHA-256' },
-                            false,
-                            ['sign']
-                        );
-
-                        const signatureBuffer = await window.crypto.subtle.sign(
-                            'HMAC',
-                            keyMaterial,
-                            enc.encode(dataToSign)
-                        );
-
-                        const encodedSignature = b64u.encodeBytes(signatureBuffer);
-
-                        this.tokenParts = {
-                            header: encodedHeader,
-                            payload: encodedPayload,
-                            signature: encodedSignature
-                        };
-                        this.isSignatureValid = true;
-
+                        this.columns = Array.from(cols);
+                        this.parsedRows = rows;
+                        this.parsedCount = count;
                     } catch (e) {
-                        this.tokenError = "Invalid JSON input.";
-                        this.isSignatureValid = false;
-                        this.tokenParts = { header: '', payload: '', signature: '' };
+                        // Invalid regex
+                        this.columns = [];
+                        this.parsedRows = [];
+                        this.parsedCount = 0;
                     }
                 },
 
-                copyToken() {
-                    const fullToken = `${this.tokenParts.header}.${this.tokenParts.payload}.${this.tokenParts.signature}`;
-                    if (fullToken.length > 2) {
-                        navigator.clipboard.writeText(fullToken);
-                    }
+                get filteredRows() {
+                    if (!this.filterQuery) return this.parsedRows;
+                    const q = this.filterQuery.toLowerCase();
+                    return this.parsedRows.filter(row => {
+                        return Object.values(row).some(val => String(val).toLowerCase().includes(q));
+                    });
                 }
             }));
         });
